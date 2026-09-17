@@ -1,32 +1,33 @@
 
 import time
 import numpy as np
-from numpy.random import seed
 from numpy import linalg as LA
 from skfeature.utility.construct_W import construct_W
 from scipy.spatial.distance import pdist
 
+from alg._util import as_int_indices, dense, make_rng, max_iter, view_dim
+
 eps = 2.2204e-16
 
-def kernelmatrix(par, trainX, testX):
-    n1sq=np.sum(np.square(testX.T),axis=0)
+def kernelmatrix(par, trainX, testX, seed=None):
+    n1sq = np.sum(np.square(testX.T), axis=0)
     t1 = n1sq.shape[0]
-    n1sq=n1sq.reshape(1,t1)
+    n1sq = n1sq.reshape(1, t1)
     n1 = testX.T.shape[1]
     if ~np.any(trainX):
         print("Y is empty.")
         D = np.dot(np.ones((n1, 1)), n1sq).T + np.dot(np.ones((n1, 1)), n1sq) - 2 * np.dot(testX, testX.T)
     else:
-        n2sq=np.sum(np.square(trainX.T),axis=0)
+        n2sq = np.sum(np.square(trainX.T), axis=0)
         t2 = n2sq.shape[0]
         n2sq = n2sq.reshape(1, t2)
-        n2=trainX.T.shape[1]
-        D=np.dot(np.ones((n2,1)),n1sq).T+np.dot(np.ones((n1,1)),n2sq)-2*np.dot(testX,trainX.T)
-    H = np.exp(-D/(2*np.square(par)))
+        n2 = trainX.T.shape[1]
+        D = np.dot(np.ones((n2, 1)), n1sq).T + np.dot(np.ones((n1, 1)), n2sq) - 2 * np.dot(testX, trainX.T)
+    H = np.exp(-D / (2 * np.square(par)))
 
     return H
 
-def UGRFS(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
+def UGRFS(X, x_view, Y, dataset, alpha, beta, gamma, lamb, seed=None):
     time_start = time.time()
 
     # initialization
@@ -37,10 +38,10 @@ def UGRFS(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     m = []
     c = []
 
-    seed(1)
+    rng = make_rng(seed)
     for i in range(n_view):
-        m.append(x_view[i][0])
-        cc = np.diag(np.random.rand(num,1).flat)
+        m.append(view_dim(x_view, i))
+        cc = np.diag(rng.random((num, 1)).flat)
         c.append(cc)
 
     # reconstruction for x-view：
@@ -54,7 +55,7 @@ def UGRFS(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
         t1 = t1 + m[i]
 
     for i in range(n_view):
-        w.append(np.random.rand(x[i].shape[1],label_num))
+        w.append(rng.random((x[i].shape[1], label_num)))
 
     # graph Laplacian
     Ly_lst = []
@@ -62,8 +63,7 @@ def UGRFS(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     Ay_lst = []
     options = {'metric': 'euclidean', 'neighbor_mode': 'knn', 'k': 20, 'weight_mode': 'heat_kernel', 't': 1.0}
 
-    Sy = construct_W(Y, **options)
-    Sy = Sy.A
+    Sy = dense(construct_W(Y, **options))
     Ay = np.diag(np.sum(Sy, 0))
     Ly = Ay - Sy
     Sy_lst.append(Sy)
@@ -90,13 +90,14 @@ def UGRFS(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
 
     wy = []
     for i in range(n_view):
-        wy.append(np.random.rand(Yx.shape[1], x[i].shape[1]))
+        wy.append(rng.random((Yx.shape[1], x[i].shape[1])))
 
 
     cver_lst = []
     obj = []
     obji = 1
     iter = 0
+    MAX_ITER = max_iter(500)
 
     while 1:
 
@@ -145,7 +146,7 @@ def UGRFS(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
         cver_lst.append(cver)
 
         iter = iter + 1
-        if (iter > 2 and (cver < 1e-3 or iter == 500)):
+        if (iter > 2 and (cver < 1e-3 or iter == MAX_ITER)):
             break
 
     time_end = time.time()
@@ -167,6 +168,6 @@ def UGRFS(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     record['selected_num'] = None
     record['param'] = param
     record['obj_value'] = np.array(obj).reshape(1, len(obj))
-    record['idx'] = f_idx.tolist()
+    record['idx'] = as_int_indices(f_idx).tolist()
 
     return record, iter

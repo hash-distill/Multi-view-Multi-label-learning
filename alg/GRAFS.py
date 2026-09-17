@@ -8,10 +8,9 @@ from numpy.random import seed
 from numpy import linalg as LA
 
 from skfeature.utility.construct_W import construct_W
-from scipy.spatial.distance import pdist
 from sklearn.preprocessing import MinMaxScaler
-import pylab as pl
-import matplotlib.pyplot as plt
+
+from alg._util import as_int_indices, dense, make_rng, max_iter, view_dim
 
 eps = 2.2204e-16
 
@@ -20,7 +19,7 @@ def normalization(data):
     return (data - np.min(data)) / _range
 
 
-def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb,kk):# before setting is 100
+def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb, kk, seed=None):# before setting is 100
     time_start = time.time()
     n_view = len(x_view)
     num, label_num = Y.shape
@@ -31,7 +30,7 @@ def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb,kk):# before setting i
     x = []
     m = []
     for i in range(n_view):
-        m.append(x_view[i][0])
+        m.append(view_dim(x_view, i))
     t1 = 0
     for i in range(0, len(m)):
         if i == 0:
@@ -40,18 +39,16 @@ def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb,kk):# before setting i
             x.append(X[:, t1:(t1 + m[i])]) 
         t1 = t1 + m[i]
     # 初始化
-    seed(1)
+    rng = make_rng(seed)
     s = []
     d = []
     p = []
-    k = 20 
-    k=kk
     k1 = 10
-    B = np.random.rand(num, k)
-    W = np.random.rand(feature_num, label_num)
-    A1 = np.random.rand(k1, k1)
-    A2 = np.random.rand(k1, k1)
-    W1 = np.random.rand(num, k1)
+    B = rng.random((num, kk))
+    W = rng.random((feature_num, label_num))
+    A1 = rng.random((k1, k1))
+    A2 = rng.random((k1, k1))
+    W1 = rng.random((num, k1))
     X1 = np.dot(Y, W.T)
     X1 = normalization(X1)
 
@@ -60,22 +57,21 @@ def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb,kk):# before setting i
 
     t2 = 0
     for i in range(n_view):
-        s1=np.random.rand(m[i], 1)
-        ts1=sum(s1)
-        for ii in range(len(s1)):
-            s1[ii] = s1[ii]/ts1
+        s1 = rng.random((m[i], 1))
+        ts1 = np.sum(s1)
+        s1 = s1 / ts1
         ss = np.diag(s1.flat) 
         s.append(ss)
-        dd = np.zeros((feature_num,m[i]))
+        dd = np.zeros((feature_num, m[i]))
         if i == 0:
             row, col = np.diag_indices(m[i])
-            dd[row,col] = np.ones((1,m[i]))
+            dd[row, col] = np.ones((1, m[i]))
         else:
-            row = np.array(list(range(t2,t2+m[i])))
-            col = np.array(list(range(m[i])))
+            row = as_int_indices(range(t2, t2 + m[i]))
+            col = as_int_indices(range(m[i]))
 
-            dd[row,col]= np.ones((1,m[i]))
-        t2 = t2+m[i]
+            dd[row, col] = np.ones((1, m[i]))
+        t2 = t2 + m[i]
         d.append(dd)
         pp = np.dot(B.T,x[i])
         p.append(pp)
@@ -85,8 +81,7 @@ def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb,kk):# before setting i
     Ay_lst = []
     options = {'metric': 'euclidean', 'neighbor_mode': 'knn', 'k': 20, 'weight_mode': 'heat_kernel', 't': 1.0}
 
-    Sy = construct_W(Y_ori, **options)#6-9
-    Sy = Sy.A
+    Sy = dense(construct_W(Y_ori, **options))#6-9
     Ay = np.diag(np.sum(Sy, 0))
     Ly = Ay - Sy
     Sy_lst.append(Sy)
@@ -104,6 +99,7 @@ def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb,kk):# before setting i
     obj = []
     obji = 1
     iter = 0
+    MAX_ITER = max_iter(500)
 
     while 1:
         for i in range(n_view):
@@ -166,7 +162,7 @@ def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb,kk):# before setting i
         cver_lst.append(cver)
 
         iter = iter + 1
-        if (iter > 2 and (cver < 1e-3 or iter == 500)):
+        if (iter > 2 and (cver < 1e-3 or iter == MAX_ITER)):
             break
     
     
@@ -183,16 +179,17 @@ def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb,kk):# before setting i
     param['beta'] = beta
     param['gamma'] = gamma
     param['lamb'] = lamb
+    param['kk'] = kk
     
     record = dict()
-    record['method'] = 'view6'
+    record['method'] = 'GRAFS'
     record['dataset'] = dataset  # 数据集名称
     record['running_time'] = running_time
     record['selected_num'] = None  # 不设定选取的特征数量，由后续的分类阶段选取数量
     record['param'] = param
 
     record['obj_value'] = np.array(obj).reshape(1, len(obj))
-    record['idx'] = f_idx.tolist()  # 序号按照特征的重要性升序排列，最后一个最重要
+    record['idx'] = as_int_indices(f_idx).tolist()  # 序号按照特征的重要性升序排列，最后一个最重要
 
     
     return record, iter

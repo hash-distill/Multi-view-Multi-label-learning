@@ -1,15 +1,16 @@
 import time
 import numpy as np
 
-from numpy.random import seed
 from numpy import linalg as LA
 from sklearn.preprocessing import MinMaxScaler
+
+from alg._util import as_int_indices, make_rng, max_iter, view_dim
 
 
 eps = 2.2204e-16
 
 
-def DHLI(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
+def DHLI(X, x_view, Y, dataset, alpha, beta, gamma, lamb, seed=None):
     time_start = time.time()
     n_view = len(x_view)
     num, label_num = Y.shape
@@ -18,12 +19,12 @@ def DHLI(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     y = []
     u = []
 
-    seed(100)
+    rng = make_rng(seed)
     for i in range(n_view):
-        m.append(x_view[i][0])
-        w.append(np.random.rand(m[i], label_num))
-        u.append(np.random.rand(m[i], label_num))
-        y.append(np.random.randint(2, size=(num, label_num)))
+        m.append(view_dim(x_view, i))
+        w.append(rng.random((m[i], label_num)))
+        u.append(rng.random((m[i], label_num)))
+        y.append(rng.integers(2, size=(num, label_num)))
 
     sum_y = 0
     for i in range(n_view):
@@ -41,14 +42,15 @@ def DHLI(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
         else:
             x.append(X[:, m[i - 1]:(m[i - 1] + m[i])])
 
-    Y_c = np.random.randint(2, size=(num, label_num))
-    Y_n = np.random.randint(2, size=(num, label_num))
+    Y_c = rng.integers(2, size=(num, label_num)).astype(float)
+    Y_n = rng.integers(2, size=(num, label_num)).astype(float)
 
     cver_lst = []
 
     obj = []
     obji = 1
     iter = 0
+    MAX_ITER = max_iter(500)
 
     Y_spe = Y - Y_c - Y_n
     Y_spe[Y_spe <= 0] = 0
@@ -75,10 +77,14 @@ def DHLI(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
             y_o[y_o == 0] = 0# 按sum_yt来说不存在负值
             y_o[y_o > 0] = 1
 
-            B = 0
+            # B is the Hadamard product of all *other* views' label matrices.
+            # The original code initialised B = 0, so `B = B * y[i]` stayed 0
+            # forever and the `lamb * y[i] * B * B` term below always vanished.
+            # The multiplicative identity for the product is 1.
+            B = 1
             for j in range(n_view):
                 if i != j:
-                    B = B * y[i]
+                    B = B * y[j]
 
             tem1 = Y_spe - y_o
             tem1[tem1 == 0] = 0
@@ -186,7 +192,7 @@ def DHLI(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
 
 
         iter = iter + 1
-        if (iter > 2 and (cver < 1e-3 or iter == 500)):
+        if (iter > 2 and (cver < 1e-3 or iter == MAX_ITER)):
             break
 
     time_end = time.time()
@@ -213,12 +219,12 @@ def DHLI(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     param['lamb'] = lamb
 
     record = dict()
-    record['method'] = 'DLHI'
+    record['method'] = 'DHLI'
     record['dataset'] = dataset
     record['param'] = param
     record['running_time'] = running_time
     record['obj_value'] = np.array(obj).reshape(1, len(obj))
-    record['idx'] = f_idx.tolist()
+    record['idx'] = as_int_indices(f_idx).tolist()
     record['selected_num'] = None
 
     return record, iter

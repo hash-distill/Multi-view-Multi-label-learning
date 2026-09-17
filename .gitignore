@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Generated experiment output
+results/
+!results/.gitkeep
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

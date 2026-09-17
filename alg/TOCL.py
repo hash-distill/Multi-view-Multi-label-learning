@@ -5,11 +5,12 @@ output: the no. of selected features.
 """
 import time
 import numpy as np
-from numpy.random import seed
 from numpy import linalg as LA
 from scipy.fftpack import fft
 from scipy.linalg import svd
 from sklearn.preprocessing import MinMaxScaler
+
+from alg._util import as_int_indices, make_rng, max_iter, view_dim
 
 eps = 2.2204e-16
 
@@ -66,8 +67,8 @@ def prox_weight_tensor_nuclear_norm(Y,C):
 
     return np.real(newX),wtnn,trank
 
-def view7(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
-    seed(2)
+def view7(X, x_view, Y, dataset, alpha, beta, gamma, lamb, seed=None):
+    rng = make_rng(seed)
 
     time_start = time.time()
     n_view = len(x_view)
@@ -81,7 +82,7 @@ def view7(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     x = []
     m = []
     for i in range(n_view):
-        m.append(x_view[i][0])
+        m.append(view_dim(x_view, i))
     t1 = 0
     for i in range(0, len(m)):
         if i == 0:
@@ -95,15 +96,14 @@ def view7(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     d = []
     t2 = 0
     for i in range(n_view):
-        y.append(np.random.randint(2, size=(num, label_num)))
-        dd = np.zeros((m[i],feature_num))
+        y.append(rng.integers(2, size=(num, label_num)).astype(float))
+        dd = np.zeros((m[i], feature_num))
         if i == 0:
             row, col = np.diag_indices(m[i])
             dd[row, col] = np.ones((1, m[i]))
         else:
-            # """
-            col = np.array(list(range(t2, t2 + m[i])))
-            row = np.array(list(range(m[i])))
+            col = as_int_indices(range(t2, t2 + m[i]))
+            row = as_int_indices(range(m[i]))
 
             dd[row, col] = np.ones((1, m[i]))
 
@@ -121,19 +121,20 @@ def view7(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     sum_yt[sum_yt == 0] = 0
     sum_yt[sum_yt > 0] = 1
 
-    Y_n = np.random.randint(2, size=(num, label_num))
-    P = np.random.rand(num, num)
+    Y_n = rng.integers(2, size=(num, label_num)).astype(float)
+    P = rng.random((num, num))
     Z = np.zeros((num, num, n_view))
     HH = np.zeros((num, num, n_view))
-    kk = int(0.8*label_num)
-    U = np.random.rand(kk, label_num)
-    V = np.random.rand(feature_num, kk)
+    kk = int(0.8 * label_num)
+    U = rng.random((kk, label_num))
+    V = rng.random((feature_num, kk))
 
     # START
     cver_lst = []
     obj = []
     obji = 1
     iter = 0
+    MAX_ITER = max_iter(500)
 
     I = np.ones((num,kk))
     while 1:
@@ -253,7 +254,7 @@ def view7(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
         cver_lst.append(cver)
 
         iter = iter + 1
-        if (iter > 2 and (cver < 1e-6 or iter == 500)):
+        if (iter > 2 and (cver < 1e-6 or iter == MAX_ITER)):
             break
 
     time_end = time.time()
@@ -277,7 +278,7 @@ def view7(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     record['param'] = param
 
     record['obj_value'] = np.array(obj).reshape(1, len(obj))
-    record['idx'] = f_idx.tolist()
+    record['idx'] = as_int_indices(f_idx).tolist()
 
     return record, iter
 

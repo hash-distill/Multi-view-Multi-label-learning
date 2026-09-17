@@ -1,15 +1,15 @@
 import time
 import numpy as np
-from numpy.random import seed
 from numpy import linalg as LA
 from skfeature.utility.construct_W import construct_W
 from sklearn.preprocessing import MinMaxScaler
-import pylab as pl
+
+from alg._util import as_int_indices, dense, make_rng, max_iter, view_dim
 
 eps = 2.2204e-16
 
 
-def I2VSLC(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
+def I2VSLC(X, x_view, Y, dataset, alpha, beta, gamma, lamb, seed=None):
     time_start = time.time()
     n_view = len(x_view)
     num, label_num = Y.shape
@@ -17,11 +17,11 @@ def I2VSLC(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     m = []
     y = []
 
-    seed(100)
+    rng = make_rng(seed)
     for i in range(n_view):
-        m.append(x_view[i][0])
-        w.append(np.random.rand(m[i], label_num))
-        y.append(np.random.randint(2, size=(num, label_num)))
+        m.append(view_dim(x_view, i))
+        w.append(rng.random((m[i], label_num)))
+        y.append(rng.integers(2, size=(num, label_num)).astype(float))
 
     AA = np.diag([1]*label_num)
 
@@ -41,8 +41,7 @@ def I2VSLC(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     Ax_lst = []
     options = {'metric': 'euclidean', 'neighbor_mode': 'knn', 'k': 5, 'weight_mode': 'heat_kernel', 't': 1.0}
     for i in range(0, len(m)):
-        Sx = construct_W(v[i], **options)
-        Sx = Sx.A
+        Sx = dense(construct_W(v[i], **options))
         Ax = np.diag(np.sum(Sx, 0))
         Lx = Ax - Sx
         Sx_lst.append(Sx)
@@ -52,6 +51,7 @@ def I2VSLC(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     obj = []
     obji = 1
     iter = 0
+    MAX_ITER = max_iter(500)
     cver_lst = []
 
     sum_Y = y[0].copy()
@@ -164,7 +164,7 @@ def I2VSLC(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
         obji = objectives
         cver_lst.append(cver)
         iter = iter + 1
-        if (iter > 2 and (cver < 1e-3 or iter == 500)):
+        if (iter > 2 and (cver < 1e-3 or iter == MAX_ITER)):
             break
 
     time_end = time.time()
@@ -187,7 +187,7 @@ def I2VSLC(X, x_view, Y, dataset, alpha, beta, gamma, lamb):
     record['param'] = param
     record['running_time'] = running_time
     record['obj_value'] = np.array(obj).reshape(1, len(obj))
-    record['idx'] = f_idx.tolist()  # 序号按照特征的重要性升序排列，最后一个最重要
+    record['idx'] = as_int_indices(f_idx).tolist()  # 序号按照特征的重要性升序排列，最后一个最重要
     record['selected_num'] = None  # 不设定选取的特征数量，由后续的分类阶段选取数量
 
     return record, iter
