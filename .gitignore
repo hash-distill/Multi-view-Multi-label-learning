@@ -5,6 +5,17 @@ __pycache__/
 .venv/
 venv/
 
+# Local toolchain state (uv-managed interpreter + package cache). Kept inside
+# the repo so the Windows setup is self-contained and needs no writes outside it.
+.uv-cache/
+.uv-python/
+
+# Local smoke runs
+results_smoke/
+
+# Cached pdftotext output of pre-pdf/ (derived; regenerate with pdftotext)
+_pdftext/
+
 # Generated experiment output
 results/
 !results/.gitkeep

@@ -9,7 +9,7 @@ from alg._util import as_int_indices, dense, make_rng, max_iter, view_dim
 
 eps = 2.2204e-16
 
-def kernelmatrix(par, trainX, testX, seed=None):
+def kernelmatrix(par, trainX, testX, seed=None):  # 高斯核
     n1sq = np.sum(np.square(testX.T), axis=0)
     t1 = n1sq.shape[0]
     n1sq = n1sq.reshape(1, t1)
@@ -23,7 +23,7 @@ def kernelmatrix(par, trainX, testX, seed=None):
         n2sq = n2sq.reshape(1, t2)
         n2 = trainX.T.shape[1]
         D = np.dot(np.ones((n2, 1)), n1sq).T + np.dot(np.ones((n1, 1)), n2sq) - 2 * np.dot(testX, trainX.T)
-    H = np.exp(-D / (2 * np.square(par)))
+        H = np.exp(-D / (2 * np.square(par)))
 
     return H
 

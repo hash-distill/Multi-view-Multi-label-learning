@@ -169,7 +169,7 @@ def view6(X, x_view, Y, dataset, alpha, beta, gamma, lamb, kk, seed=None):# befo
     time_end = time.time()
     running_time = time_end - time_start
     print('the running time of feature selection is {}\n'.format(running_time))
-   
+    
     w_2 = LA.norm(W, ord=2, axis=1)
     f_idx = np.argsort(-w_2)
 

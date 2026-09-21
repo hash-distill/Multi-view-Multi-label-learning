@@ -14,7 +14,7 @@ from alg._util import as_int_indices, make_rng, max_iter, view_dim
 
 eps = 2.2204e-16
 
-def prox_weight_tensor_nuclear_norm(Y,C):
+def prox_weight_tensor_nuclear_norm(Y,C): # 加权 TNN 近端算子
     n1, n2, n3 = Y.shape
     X = np.zeros((n1, n2, n3), dtype=complex)
     Y = fft(Y, axis=2)
@@ -111,7 +111,11 @@ def view7(X, x_view, Y, dataset, alpha, beta, gamma, lamb, seed=None):
         d.append(dd)
 
 
-    W = np.random.rand(feature_num,label_num)
+    # NOTE: this must come from the seeded generator. It used to be a bare
+    # ``np.random.rand`` call, which draws from numpy's global RNG: the
+    # initialisation then ignored ``seed``/``MVML_SEED`` entirely and two runs
+    # with identical inputs produced different rankings.
+    W = rng.random((feature_num, label_num))
 
     sum_y = 0
     for i in range(n_view):
@@ -150,7 +154,7 @@ def view7(X, x_view, Y, dataset, alpha, beta, gamma, lamb, seed=None):
             F[F < 0] = 1
 
             y[i] = np.multiply(y[i], np.true_divide(delta * np.dot(P, np.dot(x[i], np.dot(d[i], W))) + aaa * np.dot(Z[:, :, i], y[i])  + gamma * F,delta * y[i] + gamma * y[i]  + aaa * np.dot(
-                                       np.dot(y[i], y[i].T), y[i]) + eps))
+                np.dot(y[i], y[i].T), y[i]) + eps))
 
 
         for i in range(n_view):

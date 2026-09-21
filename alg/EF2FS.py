@@ -43,7 +43,7 @@ def EF2FS(X, x_view, Y, dataset, alpha, beta, gamma, lamb, V_dim, seed=None):
     # graph Laplacian of every view (this is what the weighting step needs)
     Lx_lst = []
     options = {'metric': 'euclidean', 'neighbor_mode': 'knn', 'k': 5,
-               'weight_mode': 'heat_kernel', 't': 1.0}
+                'weight_mode': 'heat_kernel', 't': 1.0}
     for i in range(n_view):
         Sx = dense(construct_W(v[i], **options))
         Ax = np.diag(np.sum(Sx, 0))
