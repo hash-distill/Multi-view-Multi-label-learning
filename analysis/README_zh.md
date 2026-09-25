@@ -40,7 +40,7 @@ alg/
   THBFS_code_description.md   仅流程说明，无实现代码
 data/*.mat           10 个基准数据集（约 134 MB）
 pre-pdf/             六篇论文全文（TOCL/UGRFS/EF2FS/DHLI/I2VSLC/GRAFS）
-                     + THBFS 宣传材料；另含 README.md 与 paper-notes/
+                     另含 README.md 与 paper-notes/
 results/             运行输出（CSV，首次运行自动创建）
 README.md            英文原版说明（未改动）
 README_zh.md         本文档
@@ -192,7 +192,7 @@ record['running_time']   # 运行耗时
 > 2. 本次修复中包含数个**会改变数值结果**的更正（尤其 `DHLI` 的视图互斥项、
 >    `EF2FS` 的图拉普拉斯、以及折内排序的使用方式）。**上游旧代码跑出的结果与
 >    本版本不可直接比较，必须重跑。** 详见 `FIXES.md`。
-> 3. **THBFS 目前只有流程说明和论文 PDF，没有实现代码。** 若要接入，需补
+> 3. **THBFS 目前只有流程说明，没有全文也没有实现代码。** 若要接入，需补
 >    `alg/THBFS.py` 并遵守第 3 节的统一接口，`main.py` 即可直接调用。
 
 ## 8. 论文列表

@@ -188,4 +188,5 @@ Get-ChildItem pre-pdf\*.pdf | ForEach-Object {
 ```
 
 `THBFS.txt` 只有 2.4 KB —— 那是一页宣传材料，**没有全文也没有实现代码**，
-所以「六篇论文」指上面六篇，不含 THBFS。
+所以「六篇论文」指上面六篇，不含 THBFS。（该宣传材料 PDF 已从 `pre-pdf/` 移除，
+该目录现只收录上述六篇。）

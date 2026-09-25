@@ -5,6 +5,9 @@
 
 ## 收录总览
 
+本目录**只收录以下六篇**，与根目录 `README.md` 的 Publications 及 `alg/` 下的
+六个实现一一对应。
+
 | 算法 | 论文 | 发表处 | 页数 | 全文 |
 |---|---|---|---|---|
 | **TOCL** | Tensor-based Opposing yet Complementary Learning for Multi-view Multi-label Feature Selection | ACM MM 2025, pp. 1822-1831 | 10 | ✅ |
@@ -13,9 +16,11 @@
 | **DHLI** | Double-Layer Hybrid-Label Identification Feature Selection for Multi-View Multi-Label Learning | AAAI 2024, 38(11): 12295-12303 | 9 | ✅ |
 | **I2VSLC** | Exploring view-specific label relationships for multi-view multi-label feature selection | Information Sciences 681 (2024) 121215 | 14 | ✅ |
 | **GRAFS** | Anchor-guided global view reconstruction for multi-view multi-label feature selection | Information Sciences 679 (2024) 121124 | 13 | ✅ |
-| **THBFS** | Scalable Multi-View Multi-Label Feature Selection via Tensor-Coupled Hypergraph-Bipartite Consensus | 未公开全文 | 1 | ⚠️ 仅宣传材料 |
 
-**六篇已发表论文的全文现已齐备**；THBFS 仍只有一页宣传材料（且仓库中无其实现代码）。
+**六篇已发表论文的全文已齐备。**
+
+> 其他同主题文献（如 IEEE TPAMI 2026 的 URDF、Hypergraph-based MvML、
+> Tensorized MvML 等）**不属于本仓库的六篇工作，已从本目录移除**，不在此收录。
 
 ## 文件清单
 
@@ -28,7 +33,6 @@
 | `I2VSLC-2024-Information-Sciences-View-specific-label-relationships.pdf` | Information Sciences 681 (2024) 121215 | 14 | 2.15 MB |
 | `GRAFS-2024-Information-Sciences-Anchor-guided-global-view-reconstruction.pdf` | Information Sciences 679 (2024) 121124 | 13 | 1.47 MB |
 | `25-aaai-Uncertainty-Aware Global-View Reconstruction ....pdf` | 原有文件（作者版），与上表 UGRFS 同一篇 | 9 | 1.32 MB |
-| `THBFS.pdf` | 原有文件，一页宣传材料 | 1 | 0.37 MB |
 | `paper-notes/*.md` | 各篇题录、摘要、对应代码、变量对照 | – | – |
 
 说明：`25-aaai-Uncertainty-Aware...pdf` 与
@@ -69,6 +73,10 @@ sha256sum "<file>.pdf"
 
 ## 与代码的对应关系
 
-各论文的方法思路、代码位置、以及「论文符号 ↔ 代码变量」对照表，
-见仓库根目录的 [`PAPERS_AND_CODE.md`](../PAPERS_AND_CODE.md)；
+各论文的方法思路、代码位置，以及「论文符号 ↔ 代码变量」对照表，见：
+
+- [`insight/FORMULA_TO_CODE.md`](../insight/FORMULA_TO_CODE.md) — 公式 ↔ 代码逐项对照
+- [`analysis/CODE_WALKTHROUGH.md`](../analysis/CODE_WALKTHROUGH.md) — 六个实现的代码走读
+- [`analysis/PAPER_METHOD_ANALYSIS.md`](../analysis/PAPER_METHOD_ANALYSIS.md) — 各篇方法分析
+
 `paper-notes/` 下的单篇笔记给出更详细的题录与摘要。
