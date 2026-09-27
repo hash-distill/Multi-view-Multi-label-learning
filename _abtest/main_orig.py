@@ -363,17 +363,8 @@ def _make_mlknn():
     ``scikit-multilearn`` 0.2.0 instantiates ``NearestNeighbors(self.k)``
     positionally; scikit-learn >= 1.0 only accepts keyword parameters and raises
     ``TypeError: NearestNeighbors.__init__() takes 1 positional argument but 2
-    were given``. We subclass MLkNN and reimplement the neighbour bookkeeping
-    with the keyword form.
-
-    The reimplementation is also **vectorised**: the base class accumulates its
-    label/neighbour contingency tables one ``(instance, label)`` pair at a time
-    and repeats the kNN query once in ``predict`` and again in
-    ``predict_proba``. On the datasets used here (IAPRTC12: 4999 instances x 291
-    labels x 262 feature subsets x 5 folds) that costs tens of hours per run.
-    The vectorised version performs exactly the same integer counts and the same
-    float operations, so every metric it produces is bit-identical to the base
-    implementation — only the running time changes.
+    were given``. We subclass MLkNN and reimplement only ``_compute_cond`` with
+    the keyword form, keeping the original probability estimates untouched.
     """
     import scipy.sparse as sparse
     from skmultilearn.adapt import MLkNN
@@ -381,99 +372,69 @@ def _make_mlknn():
     from sklearn.neighbors import NearestNeighbors
 
     class _MLkNN(MLkNN):
-        def fit(self, X, y):
-            self._dense_label_cache = None
-            self._cond_prob_dense_cache = None
-            return super().fit(X, y)
-
-        # -- neighbour bookkeeping -------------------------------------------
-        def _neighbor_rows(self, X):
-            """Indices of the ``k`` neighbours of every row of ``X`` (self excluded)."""
-            return self.knn_.kneighbors(
-                X, self.k + self.ignore_first_neighbours,
-                return_distance=False)[:, self.ignore_first_neighbours:]
-
-        def _dense_labels(self):
-            """Dense 0/1 label matrix of the training set (cached)."""
-            if self._dense_label_cache is None:
-                dense = get_matrix_in_format(self._label_cache, 'csr').toarray()
-                self._dense_label_cache = (dense != 0).astype(np.uint8)
-            return self._dense_label_cache
-
-        def _label_counts(self, rows):
-            """``(n_rows, n_labels)`` positive-label counts among the neighbours.
-
-            Same quantity as the base class' ``label_info[neighbors].sum(axis=0)``
-            per instance, summed in one vectorised pass over chunks.
-            """
-            labels = self._dense_labels()
-            n_rows, k = rows.shape
-            n_labels = labels.shape[1]
-            chunk = max(1, int(4_000_000 // max(1, k * n_labels)))
-            counts = np.empty((n_rows, n_labels), dtype=np.int64)
-            for start in range(0, n_rows, chunk):
-                block = rows[start:start + chunk]
-                counts[start:start + chunk] = labels[block].sum(axis=1, dtype=np.int64)
-            return counts
-
-        # -- MLkNN internals --------------------------------------------------
         def _compute_cond(self, X, y):
-            """Vectorised ``_compute_cond``; identical counts and probabilities."""
             self.knn_ = NearestNeighbors(n_neighbors=self.k).fit(X)
 
-            labels = self._dense_labels()
-            counts = self._label_counts(self._neighbor_rows(X))
-            n_labels = self._num_labels
+            c = sparse.lil_matrix((self._num_labels, self.k + 1), dtype='i8')
+            cn = sparse.lil_matrix((self._num_labels, self.k + 1), dtype='i8')
+            label_info = get_matrix_in_format(y, 'dok')
 
-            c = np.zeros((n_labels, self.k + 1), dtype=np.int64)
-            cn = np.zeros((n_labels, self.k + 1), dtype=np.int64)
-            for label in range(n_labels):
-                column = counts[:, label]
-                positive = labels[:, label] != 0
-                c[label] = np.bincount(column[positive], minlength=self.k + 1)
-                cn[label] = np.bincount(column[~positive], minlength=self.k + 1)
+            neighbors = [
+                a[self.ignore_first_neighbours:]
+                for a in self.knn_.kneighbors(
+                    X, self.k + self.ignore_first_neighbours, return_distance=False)
+            ]
+
+            for instance in range(self._num_instances):
+                deltas = label_info[neighbors[instance], :].sum(axis=0)
+                for label in range(self._num_labels):
+                    if label_info[instance, label] == 1:
+                        c[label, int(deltas[0, label])] += 1
+                    else:
+                        cn[label, int(deltas[0, label])] += 1
 
             c_sum = c.sum(axis=1)
             cn_sum = cn.sum(axis=1)
-            cond_prob_true = (self.s + c) / (self.s * (self.k + 1) + c_sum[:, None])
-            cond_prob_false = (self.s + cn) / (self.s * (self.k + 1) + cn_sum[:, None])
-            return sparse.lil_matrix(cond_prob_true), sparse.lil_matrix(cond_prob_false)
 
-        def _cond_prob_dense(self):
-            if self._cond_prob_dense_cache is None:
-                self._cond_prob_dense_cache = (
-                    np.asarray(self._cond_prob_true.todense()),
-                    np.asarray(self._cond_prob_false.todense()))
-            return self._cond_prob_dense_cache
+            cond_prob_true = sparse.lil_matrix((self._num_labels, self.k + 1), dtype='float')
+            cond_prob_false = sparse.lil_matrix((self._num_labels, self.k + 1), dtype='float')
+            for label in range(self._num_labels):
+                for neighbor in range(self.k + 1):
+                    cond_prob_true[label, neighbor] = (
+                        self.s + c[label, neighbor]) / (self.s * (self.k + 1) + c_sum[label, 0])
+                    cond_prob_false[label, neighbor] = (
+                        self.s + cn[label, neighbor]) / (self.s * (self.k + 1) + cn_sum[label, 0])
+            return cond_prob_true, cond_prob_false
 
-        def _posterior(self, X):
-            """``(p_true, p_false)`` for every ``(instance, label)`` pair of ``X``."""
-            counts = self._label_counts(self._neighbor_rows(X))
-            cond_true, cond_false = self._cond_prob_dense()
-            label_index = np.arange(self._num_labels)[None, :]
-            prior_true = np.asarray(self._prior_prob_true).ravel()[None, :]
-            prior_false = np.asarray(self._prior_prob_false).ravel()[None, :]
-            return (prior_true * cond_true[label_index, counts],
-                    prior_false * cond_false[label_index, counts])
+        def _neighbor_count(self, X):
+            """Per-instance label counts over the k nearest neighbours."""
+            neighbors = [
+                a[self.ignore_first_neighbours:]
+                for a in self.knn_.kneighbors(
+                    X, self.k + self.ignore_first_neighbours, return_distance=False)
+            ]
+            for instance in range(X.shape[0]):
+                deltas = self._label_cache[neighbors[instance], ].sum(axis=0)
+                yield deltas
 
-        # -- public API -------------------------------------------------------
         def predict(self, X):
-            p_true, p_false = self._posterior(X)
-            return sparse.lil_matrix((p_true >= p_false).astype('i8'))
+            result = sparse.lil_matrix((X.shape[0], self._num_labels), dtype='i8')
+            for instance, deltas in enumerate(self._neighbor_count(X)):
+                for label in range(self._num_labels):
+                    idx = int(deltas[0, label])
+                    p_true = float(self._prior_prob_true[label]) * self._cond_prob_true[label, idx]
+                    p_false = float(self._prior_prob_false[label]) * self._cond_prob_false[label, idx]
+                    result[instance, label] = int(p_true >= p_false)
+            return result
 
         def predict_proba(self, X):
-            p_true, _ = self._posterior(X)
-            return sparse.lil_matrix(p_true)
-
-        def predict_and_proba(self, X):
-            """Both outputs from a single neighbour query.
-
-            ``predict`` + ``predict_proba`` used to run the identical kNN query
-            and neighbour histogram twice; this computes them once.
-            """
-            p_true, p_false = self._posterior(X)
-            return (sparse.lil_matrix((p_true >= p_false).astype('i8')),
-                    sparse.lil_matrix(p_true))
+            result = sparse.lil_matrix((X.shape[0], self._num_labels), dtype='float')
+            for instance, deltas in enumerate(self._neighbor_count(X)):
+                for label in range(self._num_labels):
+                    idx = int(deltas[0, label])
+                    result[instance, label] = (
+                        float(self._prior_prob_true[label]) * self._cond_prob_true[label, idx])
+            return result
 
     return _MLkNN()
 
@@ -497,8 +458,8 @@ def evaluate_ranking(trainX, Ytrain, testX, Ytest, ranking, select_num):
 
         clf = _make_mlknn()
         clf.fit(data_tr, Ytrain)
-        pred, proba = clf.predict_and_proba(data_te)
-        proba = proba.toarray()
+        pred = clf.predict(data_te)
+        proba = clf.predict_proba(data_te).toarray()
 
         scores["hamming_loss"][k - 1] = hamming_loss(Ytest, pred)
         scores["label_ranking_loss"][k - 1] = label_ranking_loss(Ytest, proba)
